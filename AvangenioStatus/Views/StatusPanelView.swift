@@ -61,7 +61,7 @@ struct StatusPanelView: View {
                 value: status.batteryPercent.map(MetricFormat.percent) ?? "—")
             row("Electricidad", value: status.power == .on ? "Sí" : "No",
                 ok: status.power == .on)
-            row("Actualizado", value: status.lastUpdatedRaw)
+            row("Actualizado", value: DateDisplay.spanish(fromAPITimestamp: status.lastUpdatedRaw))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -92,7 +92,7 @@ public final class NotificationService: NSObject, NotificationServing, UNUserNot
         let power = status.power == .on ? "sí" : "no"
         let bandwidth = status.bandwidthMbps.map(MetricFormat.mbps) ?? "—"
         let battery = status.batteryPercent.map(MetricFormat.percent) ?? "—"
-        content.body = "Internet: \(internet) · Banda: \(bandwidth) · Baterías: \(battery) · Electricidad: \(power)\nActualizado: \(status.lastUpdatedRaw)"
+        content.body = "Internet: \(internet) · Banda: \(bandwidth) · Baterías: \(battery) · Electricidad: \(power)\nActualizado: \(DateDisplay.spanish(fromAPITimestamp: status.lastUpdatedRaw))"
         return content
     }
 }
