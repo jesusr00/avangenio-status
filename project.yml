@@ -1,0 +1,74 @@
+name: AvangenioStatus
+options:
+  bundleIdPrefix: com.avangenio
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: "YES"
+    # Ad-hoc "Sign to Run Locally" — personal use, no paid developer account.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: "NO"
+
+targets:
+  # Domain + models + orchestrator, isolated from the SwiftUI shell (KTD2).
+  AvangenioStatusKit:
+    type: framework
+    platform: macOS
+    sources:
+      - AvangenioStatusKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.avangenio.status.kit
+        ENABLE_TESTABILITY: "YES"
+
+  # Menu bar app shell (LSUIElement, no Dock icon).
+  AvangenioStatus:
+    type: application
+    platform: macOS
+    sources:
+      - AvangenioStatus
+    dependencies:
+      - target: AvangenioStatusKit
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.avangenio.status
+        INFOPLIST_FILE: AvangenioStatus/Info.plist
+        CODE_SIGN_ENTITLEMENTS: AvangenioStatus/AvangenioStatus.entitlements
+        GENERATE_INFOPLIST_FILE: "NO"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+
+  # Non-hosted unit tests against the framework (no app host needed).
+  AvangenioStatusTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - AvangenioStatusTests
+    dependencies:
+      - target: AvangenioStatusKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.avangenio.status.tests
+
+schemes:
+  AvangenioStatus:
+    build:
+      targets:
+        AvangenioStatusKit: all
+        AvangenioStatus: all
+        AvangenioStatusTests: [test]
+    test:
+      targets:
+        - AvangenioStatusTests
+    run:
+      config: Debug
