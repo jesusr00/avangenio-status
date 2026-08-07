@@ -43,10 +43,11 @@ struct StatusPanelView: View {
     }
 
     private var header: some View {
-        HStack {
-            StatusIcon(model: model)
+        HStack(spacing: 8) {
+            LogoBadge(size: 26)
             Text("Avangenio Status").font(.headline)
             Spacer()
+            StatusIcon(model: model)
         }
     }
 

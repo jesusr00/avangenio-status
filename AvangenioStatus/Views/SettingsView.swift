@@ -10,6 +10,19 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 8) {
+                        LogoBadge(size: 56)
+                        Text("Avangenio Status").font(.headline)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 6)
+                .listRowBackground(Color.clear)
+            }
+
             Section("Umbrales de aviso") {
                 LabeledContent("Baterías") {
                     HStack {
