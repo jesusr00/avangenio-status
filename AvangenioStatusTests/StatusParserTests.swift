@@ -28,6 +28,18 @@ final class StatusParserTests: XCTestCase {
         XCTAssertEqual(parser.parse(sample(power: "YES"))?.power, .on)
     }
 
+    func testPowerSiMapsToOn() {
+        XCTAssertEqual(parser.parse(sample(power: "SI"))?.power, .on)
+    }
+
+    func testPowerSiWithAccentMapsToOn() {
+        XCTAssertEqual(parser.parse(sample(power: "SÍ"))?.power, .on)
+    }
+
+    func testPowerNoMapsToOff() {
+        XCTAssertEqual(parser.parse(sample(power: "NO"))?.power, .off)
+    }
+
     func testTolerantSpacing() {
         let text = "Ultima actualizacion:   x\nInternet Status:    OK\nServicio Eléctrico Estatal:   NO"
         XCTAssertEqual(parser.parse(text)?.internet, .ok)

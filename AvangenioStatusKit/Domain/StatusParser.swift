@@ -41,7 +41,9 @@ public struct StatusParser: Sendable {
             } else if key.contains("bater") {          // baterías / baterias
                 battery = Self.firstNumber(in: value)
             } else if key.contains("ctrico") {          // eléctrico / electrico
-                power = value.uppercased() == "YES" ? .on : .off
+                // La API responde en español: "SI" / "SÍ" / "NO".
+                let v = value.uppercased()
+                power = (v == "SI" || v == "SÍ" || v == "YES") ? .on : .off
             }
         }
 
