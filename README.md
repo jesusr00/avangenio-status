@@ -15,6 +15,29 @@ por eventos (transiciones con histéresis) y por reportes programados.
 El `.xcodeproj` **no** se versiona: se genera con [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 a partir de `project.yml`.
 
+## Instalación (usuario final)
+
+### Homebrew (recomendado)
+
+```bash
+brew install --cask jesusr00/tap/avangenio-status
+```
+
+### Descarga directa
+
+Baja el DMG más reciente desde
+[Releases](https://github.com/jesusr00/avangenio-status/releases/latest) y arrastra
+`AvangenioStatus.app` a `Aplicaciones`.
+
+### Primer arranque (Gatekeeper)
+
+La app está firmada **ad-hoc** (sin notarización de Apple), así que la primera vez macOS
+puede bloquearla. Ábrela con **clic derecho → Abrir**, o quita la cuarentena:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/AvangenioStatus.app"
+```
+
 ## Requisitos
 
 ```bash
@@ -30,6 +53,29 @@ xcodebuild test  -project AvangenioStatus.xcodeproj -scheme AvangenioStatus -des
 ```
 
 O abre `AvangenioStatus.xcodeproj` en Xcode y usa ⌘R / ⌘U.
+
+## Empaquetado y release (mantenedores)
+
+La distribución replica el patrón de [downbender](https://github.com/NaztiRS/downbender):
+un DMG firmado ad-hoc publicado en GitHub Releases y un Homebrew Cask en el tap
+[`jesusr00/homebrew-tap`](https://github.com/jesusr00/homebrew-tap).
+
+Tareas locales (requieren `xcodegen` y, para el DMG, `create-dmg`):
+
+```bash
+make bundle    # compila Release universal → dist/AvangenioStatus.app
+make dmg       # empaqueta → dist/AvangenioStatus.dmg
+```
+
+Para publicar una versión:
+
+1. Sube `MARKETING_VERSION` en `project.yml`.
+2. Commit en `main`.
+3. `make release` → valida, testea y empuja el tag `vX.Y.Z`.
+
+El tag dispara `.github/workflows/release.yml`, que compila el DMG universal, crea el
+GitHub Release y actualiza el Cask (versión + sha256) en el tap. Requiere el secret
+`TAP_GITHUB_TOKEN` (PAT con escritura en `jesusr00/homebrew-tap`) en este repo.
 
 ## Notas
 
