@@ -26,6 +26,19 @@ final class SpyNotifier: NotificationServing, @unchecked Sendable {
     func requestAuthorizationIfNeeded() async -> Bool { true }
 }
 
+/// Store de historial falso: registra lo añadido y sirve una semilla.
+final class FakeHistoryStore: HistoryStoring, @unchecked Sendable {
+    private(set) var appended: [EnergySample] = []
+    private var samples: [EnergySample]
+    init(seed: [EnergySample] = []) { self.samples = seed }
+    func load() -> [EnergySample] { samples }
+    func append(_ sample: EnergySample) -> [EnergySample] {
+        appended.append(sample)
+        samples.append(sample)
+        return samples
+    }
+}
+
 @MainActor
 final class AppModelTests: XCTestCase {
 
@@ -152,6 +165,54 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(notifier.summaries.count, 1)
     }
 
+    // MARK: historial de energía
+
+    func testUpdatedRecordsHistorySample() async {
+        let history = FakeHistoryStore()
+        let (model, _, _) = makeModel(
+            fetcher: FakeFetcher([.updated(body: body(power: "NO"), etag: "e1")]),
+            history: history
+        )
+        await model.refreshNow()
+        XCTAssertEqual(history.appended.count, 1)
+        XCTAssertEqual(history.appended.first?.power, .off)
+        XCTAssertEqual(history.appended.first?.batteryPercent, 50)
+        XCTAssertEqual(model.history.count, 1)
+    }
+
+    func testNotModifiedRecordsSampleFromCurrent() async {
+        let history = FakeHistoryStore()
+        let (model, _, _) = makeModel(
+            fetcher: FakeFetcher([
+                .updated(body: body(power: "NO"), etag: "e1"),
+                .notModified,
+            ]),
+            history: history
+        )
+        await model.refreshNow()
+        await model.refreshNow()
+        XCTAssertEqual(history.appended.count, 2)
+        XCTAssertEqual(history.appended.last?.power, .off)   // refleja el estado vigente
+    }
+
+    func testFailedFetchDoesNotRecordHistory() async {
+        let history = FakeHistoryStore()
+        let (model, _, _) = makeModel(
+            fetcher: FakeFetcher([.failed(URLError(.timedOut))]),
+            history: history
+        )
+        await model.refreshNow()
+        XCTAssertTrue(history.appended.isEmpty)
+        XCTAssertTrue(model.history.isEmpty)
+    }
+
+    func testSeedsHistoryFromStoreAtInit() {
+        let seed = [EnergySample(timestamp: Date(timeIntervalSince1970: 1), batteryPercent: 30, power: .on)]
+        let history = FakeHistoryStore(seed: seed)
+        let (model, _, _) = makeModel(fetcher: FakeFetcher([.notModified]), history: history)
+        XCTAssertEqual(model.history, seed)
+    }
+
     // MARK: helpers
 
     private func freshStore() -> SettingsStore {
@@ -162,7 +223,11 @@ final class AppModelTests: XCTestCase {
         makeModel(fetcher: FakeFetcher(results))
     }
 
-    private func makeModel(fetcher: FakeFetcher, store: SettingsStore? = nil) -> (AppModel, SpyNotifier, FakeFetcher) {
+    private func makeModel(
+        fetcher: FakeFetcher,
+        store: SettingsStore? = nil,
+        history: HistoryStoring? = nil
+    ) -> (AppModel, SpyNotifier, FakeFetcher) {
         let notifier = SpyNotifier()
         let model = AppModel(
             fetcher: fetcher,
@@ -170,7 +235,8 @@ final class AppModelTests: XCTestCase {
             detector: EventDetector(),
             scheduleEngine: ScheduleEngine(),
             notifier: notifier,
-            store: store ?? freshStore()
+            store: store ?? freshStore(),
+            historyStore: history ?? FakeHistoryStore()
         )
         return (model, notifier, fetcher)
     }
