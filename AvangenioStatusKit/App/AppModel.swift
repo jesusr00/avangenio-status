@@ -20,6 +20,8 @@ public final class AppModel {
     public private(set) var iconState: IconState = .unknown
     public private(set) var lastCheckedAt: Date?
     public private(set) var notificationsAuthorized = false
+    /// Serie observable del historial de energía (baterías + electricidad).
+    public private(set) var history: [EnergySample] = []
 
     public var settings: AppSettings {
         didSet {
@@ -45,6 +47,7 @@ public final class AppModel {
     private let scheduleEngine: ScheduleEngine
     private let notifier: NotificationServing?
     private let store: SettingsStore
+    private let historyStore: HistoryStoring
 
     // Estado interno.
     private var arming: ArmingState
@@ -62,7 +65,8 @@ public final class AppModel {
         detector: EventDetector = EventDetector(),
         scheduleEngine: ScheduleEngine = ScheduleEngine(),
         notifier: NotificationServing? = NotificationService(),
-        store: SettingsStore = SettingsStore()
+        store: SettingsStore = SettingsStore(),
+        historyStore: HistoryStoring = HistoryStore()
     ) {
         self.fetcher = fetcher
         self.parser = parser
@@ -70,11 +74,13 @@ public final class AppModel {
         self.scheduleEngine = scheduleEngine
         self.notifier = notifier
         self.store = store
+        self.historyStore = historyStore
         self.settings = store.loadSettings()
         self.schedules = store.loadSchedules()
         self.arming = store.loadArming()
         self.etag = store.loadEtag()
         self.lastScheduleCheck = store.loadLastScheduleCheck() ?? Date()
+        self.history = historyStore.load()
         if let last = store.loadLastStatus() {
             self.current = last
             self.iconState = Self.iconState(for: last)
@@ -132,8 +138,12 @@ public final class AppModel {
             lastCheckedAt = Date()
         case .notModified:
             // El último cuerpo sigue vigente: restaurar el icono desde `current`.
+            let now = Date()
             iconState = current.map(Self.iconState(for:)) ?? .unknown
-            lastCheckedAt = Date()
+            lastCheckedAt = now
+            if let status = current {
+                recordSample(from: status, at: now)
+            }
         case let .updated(body, newEtag):
             etag = newEtag
             store.save(etag: newEtag)
@@ -154,6 +164,7 @@ public final class AppModel {
             store.save(lastStatus: status)
             iconState = Self.iconState(for: status)
             lastCheckedAt = status.fetchedAt
+            recordSample(from: status, at: status.fetchedAt)
             if settings.notificationsEnabled, !events.isEmpty {
                 notifier?.notify(events: events)
             }
@@ -162,6 +173,16 @@ public final class AppModel {
 
     static func iconState(for status: ServiceStatus) -> IconState {
         (status.power == .off || status.internet == .down) ? .alert : .ok
+    }
+
+    /// Registra una muestra de energía en el historial (persistente + observable).
+    private func recordSample(from status: ServiceStatus, at timestamp: Date) {
+        let sample = EnergySample(
+            timestamp: timestamp,
+            batteryPercent: status.batteryPercent,
+            power: status.power
+        )
+        history = historyStore.append(sample)
     }
 
     // MARK: - Timers
