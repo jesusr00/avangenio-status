@@ -28,5 +28,10 @@ struct AvangenioStatusApp: App {
             SettingsView(model: appDelegate.model)
         }
         .windowResizability(.contentSize)
+
+        Window("Historial de energía", id: "history") {
+            HistoryView(model: appDelegate.model)
+        }
+        .windowResizability(.contentSize)
     }
 }

@@ -92,6 +92,11 @@ struct StatusPanelView: View {
 
             Spacer()
 
+            Button("Historial") {
+                openWindow(id: "history")
+                NSApp.activate(ignoringOtherApps: true)
+            }
+
             Button("Ajustes") {
                 openWindow(id: "settings")
                 // App accesoria (LSUIElement): activar para traer la ventana al frente.
