@@ -9,11 +9,8 @@ public enum HistoryHoverFormat {
         range: HistoryRange,
         timeZone: TimeZone = .current
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "es")
-        formatter.timeZone = timeZone
-        formatter.dateFormat = range == .day ? "HH:mm" : "d MMM, HH:mm"
-        return formatter.string(from: date)
+        formatter(pattern: range == .day ? "HH:mm" : "d MMM, HH:mm", timeZone: timeZone)
+            .string(from: date)
     }
 
     /// Duración compacta en horas y minutos, ej. "3 h 20 min", "45 min", "2 h".
@@ -25,5 +22,33 @@ public enum HistoryHoverFormat {
         if hours == 0 { return "\(minutes) min" }
         if minutes == 0 { return "\(hours) h" }
         return "\(hours) h \(minutes) min"
+    }
+
+    /// El lector se redibuja en cada movimiento del mouse, así que los formateadores se
+    /// reutilizan en vez de construirse por llamada.
+    private static let cache = FormatterCache()
+
+    private static func formatter(pattern: String, timeZone: TimeZone) -> DateFormatter {
+        cache.formatter(pattern: pattern, timeZone: timeZone)
+    }
+
+    private final class FormatterCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var formatters: [String: DateFormatter] = [:]
+
+        func formatter(pattern: String, timeZone: TimeZone) -> DateFormatter {
+            let key = "\(pattern)|\(timeZone.identifier)"
+            lock.lock()
+            defer { lock.unlock() }
+
+            if let cached = formatters[key] { return cached }
+
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "es")
+            formatter.timeZone = timeZone
+            formatter.dateFormat = pattern
+            formatters[key] = formatter
+            return formatter
+        }
     }
 }
