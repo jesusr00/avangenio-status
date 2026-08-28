@@ -121,22 +121,19 @@ struct HistoryView: View {
                         container: geometry.size
                     )
                     HoverReadoutBox(reading: hover, range: range)
+                        // El tamaño se escribe directo desde el lector de geometría: la vía
+                        // por PreferenceKey no propagaba fuera del fondo dentro del overlay
+                        // y dejaba la medida en cero.
                         .background(
                             GeometryReader { box in
-                                Color.clear.preference(key: ReadoutSizeKey.self, value: box.size)
+                                Color.clear
+                                    .onAppear { readoutSize = box.size }
+                                    .onChange(of: box.size) { readoutSize = box.size }
                             }
                         )
                         .offset(x: origin.x, y: origin.y)
-                        // Sin medida todavía no se sabe hacia dónde voltear: se oculta ese
-                        // primer cuadro en vez de dibujarla en el sitio equivocado.
-                        .opacity(readoutSize == .zero ? 0 : 1)
                         .allowsHitTesting(false)
                 }
-            }
-            // El desmontaje reporta cero; conservar la última medida real evita que la
-            // caja vuelva a aparecer sin voltear al reentrar.
-            .onPreferenceChange(ReadoutSizeKey.self) { size in
-                if size != .zero { readoutSize = size }
             }
         }
     }
@@ -182,10 +179,3 @@ struct HistoryView: View {
     }
 }
 
-/// Ancho y alto reales de la caja del lector, para poder voltearla contra los bordes.
-private struct ReadoutSizeKey: PreferenceKey {
-    static let defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
-        value = nextValue()
-    }
-}
