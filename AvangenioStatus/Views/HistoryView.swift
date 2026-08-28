@@ -8,6 +8,8 @@ struct HistoryView: View {
     @Bindable var model: AppModel
     @State private var range: HistoryRange = .week
     @State private var hover: HoverReading?
+    @State private var hoverLocation: CGPoint?
+    @State private var readoutSize: CGSize = .zero
 
     var body: some View {
         // Se construye una sola vez por render: el lector resuelve contra estos mismos
@@ -25,7 +27,7 @@ struct HistoryView: View {
         }
         .padding(16)
         .frame(minWidth: 560, minHeight: 360)
-        .onChange(of: range) { hover = nil }
+        .onChange(of: range) { clearHover() }
     }
 
     private var header: some View {
@@ -91,13 +93,55 @@ struct HistoryView: View {
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let location):
-                            hover = reading(at: location, proxy: proxy, geometry: geometry, data: data)
+                            if let found = reading(at: location, proxy: proxy, geometry: geometry, data: data) {
+                                hover = found
+                                hoverLocation = location
+                            } else {
+                                clearHover()
+                            }
                         case .ended:
-                            hover = nil
+                            clearHover()
                         }
                     }
+
+                if let hover, let hoverLocation {
+                    HoverReadoutBox(reading: hover, range: range)
+                        .background(
+                            GeometryReader { box in
+                                Color.clear.preference(key: ReadoutSizeKey.self, value: box.size)
+                            }
+                        )
+                        .offset(readoutOffset(for: hoverLocation, in: geometry.size))
+                        .allowsHitTesting(false)
+                }
             }
+            .onPreferenceChange(ReadoutSizeKey.self) { readoutSize = $0 }
         }
+    }
+
+    private func clearHover() {
+        hover = nil
+        hoverLocation = nil
+    }
+
+    /// La caja se coloca arriba a la derecha del cursor y se voltea contra los bordes
+    /// para no salirse de la ventana.
+    private func readoutOffset(for location: CGPoint, in container: CGSize) -> CGSize {
+        let margin: CGFloat = 12
+
+        var x = location.x + margin
+        if x + readoutSize.width > container.width {
+            x = location.x - margin - readoutSize.width
+        }
+        x = min(max(0, x), max(0, container.width - readoutSize.width))
+
+        var y = location.y - margin - readoutSize.height
+        if y < 0 {
+            y = location.y + margin
+        }
+        y = min(max(0, y), max(0, container.height - readoutSize.height))
+
+        return CGSize(width: x, height: y)
     }
 
     /// Traduce la posición del cursor a la lectura del dominio. Devuelve `nil` fuera del
@@ -133,5 +177,13 @@ struct HistoryView: View {
             Text("Aún no hay suficientes datos").foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Ancho y alto reales de la caja del lector, para poder voltearla contra los bordes.
+private struct ReadoutSizeKey: PreferenceKey {
+    static let defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        value = nextValue()
     }
 }
