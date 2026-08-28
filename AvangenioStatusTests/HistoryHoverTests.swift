@@ -26,6 +26,14 @@ final class HistoryHoverTests: XCTestCase {
         XCTAssertEqual(reading.content, .reading(percent: 85, power: .on, outage: nil))
     }
 
+    func testAnchorsToPreviousSampleWhenItIsCloser() {
+        let d = data([sample(-3_600, battery: 90), sample(-3_000, battery: 85)])
+        let reading = HistoryHover.reading(at: at(-3_500), in: d)
+
+        XCTAssertEqual(reading.anchor, at(-3_600))
+        XCTAssertEqual(reading.content, .reading(percent: 90, power: .on, outage: nil))
+    }
+
     func testAnchorsExactlyOnSample() {
         let d = data([sample(-3_600, battery: 90), sample(-3_000, battery: 85)])
         let reading = HistoryHover.reading(at: at(-3_000), in: d)
@@ -114,6 +122,23 @@ final class HistoryHoverTests: XCTestCase {
         XCTAssertEqual(outage?.end, at(-3_000))
         XCTAssertEqual(outage?.isOngoing, false)
         XCTAssertEqual(outage?.duration, 4_200)
+    }
+
+    func testStaleOutageIsClampedToTheLastRecordedSample() {
+        // El registro se corta hace 3 h (app cerrada). El corte no puede declararse
+        // "en curso" ni acumular las horas que nadie midió.
+        let samples = stride(from: -18_000.0, through: -10_800.0, by: 600).map {
+            sample($0, battery: 40, power: .off)
+        }
+        let reading = HistoryHover.reading(at: at(-14_400), in: data(samples))
+
+        guard case let .reading(_, _, outage) = reading.content else {
+            return XCTFail("se esperaba una lectura, no \(reading.content)")
+        }
+        XCTAssertEqual(outage?.start, at(-18_000))
+        XCTAssertEqual(outage?.end, at(-10_800), "el tramo se recorta a la última muestra real")
+        XCTAssertEqual(outage?.isOngoing, false)
+        XCTAssertEqual(outage?.duration, 7_200)
     }
 
     func testPoweredSampleHasNoOutage() {

@@ -7,27 +7,37 @@ import AvangenioStatusKit
 struct HistoryView: View {
     @Bindable var model: AppModel
     @State private var range: HistoryRange = .week
+    @State private var data: HistoryChartData?
     @State private var hover: HoverReading?
     @State private var hoverLocation: CGPoint?
     @State private var readoutSize: CGSize = .zero
 
     var body: some View {
-        // Se construye una sola vez por render: el lector resuelve contra estos mismos
-        // datos, en lugar de recalcularlos en cada movimiento del mouse.
-        let data = HistoryChart.build(samples: model.history, range: range, now: Date())
-
-        return VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             header
-            if data.batterySegments.isEmpty && data.powerBands.isEmpty {
-                emptyState
-            } else {
+            if let data, !(data.batterySegments.isEmpty && data.powerBands.isEmpty) {
                 chart(data)
                 legend
+            } else {
+                emptyState
             }
         }
         .padding(16)
         .frame(minWidth: 560, minHeight: 360)
-        .onChange(of: range) { clearHover() }
+        .onAppear { rebuild() }
+        .onChange(of: range) {
+            clearHover()
+            rebuild()
+        }
+        // La serie es de solo-añadir: basta con mirar la última muestra para saber
+        // que llegó un poll nuevo.
+        .onChange(of: model.history.last?.timestamp) { rebuild() }
+    }
+
+    /// Los datos se derivan al abrir y en cada poll, no dentro de `body`: mover el mouse
+    /// invalida el estado del hover en cada evento y no debe rehacer la serie completa.
+    private func rebuild() {
+        data = HistoryChart.build(samples: model.history, range: range, now: Date())
     }
 
     private var header: some View {
@@ -105,43 +115,35 @@ struct HistoryView: View {
                     }
 
                 if let hover, let hoverLocation {
+                    let origin = HistoryHoverLayout.readoutOrigin(
+                        cursor: hoverLocation,
+                        boxSize: readoutSize,
+                        container: geometry.size
+                    )
                     HoverReadoutBox(reading: hover, range: range)
                         .background(
                             GeometryReader { box in
                                 Color.clear.preference(key: ReadoutSizeKey.self, value: box.size)
                             }
                         )
-                        .offset(readoutOffset(for: hoverLocation, in: geometry.size))
+                        .offset(x: origin.x, y: origin.y)
+                        // Sin medida todavía no se sabe hacia dónde voltear: se oculta ese
+                        // primer cuadro en vez de dibujarla en el sitio equivocado.
+                        .opacity(readoutSize == .zero ? 0 : 1)
                         .allowsHitTesting(false)
                 }
             }
-            .onPreferenceChange(ReadoutSizeKey.self) { readoutSize = $0 }
+            // El desmontaje reporta cero; conservar la última medida real evita que la
+            // caja vuelva a aparecer sin voltear al reentrar.
+            .onPreferenceChange(ReadoutSizeKey.self) { size in
+                if size != .zero { readoutSize = size }
+            }
         }
     }
 
     private func clearHover() {
         hover = nil
         hoverLocation = nil
-    }
-
-    /// La caja se coloca arriba a la derecha del cursor y se voltea contra los bordes
-    /// para no salirse de la ventana.
-    private func readoutOffset(for location: CGPoint, in container: CGSize) -> CGSize {
-        let margin: CGFloat = 12
-
-        var x = location.x + margin
-        if x + readoutSize.width > container.width {
-            x = location.x - margin - readoutSize.width
-        }
-        x = min(max(0, x), max(0, container.width - readoutSize.width))
-
-        var y = location.y - margin - readoutSize.height
-        if y < 0 {
-            y = location.y + margin
-        }
-        y = min(max(0, y), max(0, container.height - readoutSize.height))
-
-        return CGSize(width: x, height: y)
     }
 
     /// Traduce la posición del cursor a la lectura del dominio. Devuelve `nil` fuera del

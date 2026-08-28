@@ -52,7 +52,11 @@ public enum HistoryHover {
             content: .reading(
                 percent: point.percent,
                 power: band.state,
-                outage: outage(from: band, domainEnd: data.end)
+                outage: outage(
+                    from: band,
+                    domainEnd: data.end,
+                    lastKnown: data.batterySegments.last?.last?.timestamp
+                )
             )
         )
     }
@@ -100,8 +104,21 @@ public enum HistoryHover {
         bands.last { $0.start <= timestamp }
     }
 
-    private static func outage(from band: PowerBand, domainEnd: Date) -> OutageSpan? {
+    /// Un corte solo se declara "en curso" si el registro sigue vivo. Si la última muestra
+    /// quedó vieja (app cerrada, equipo apagado), el tramo se recorta a lo último que se
+    /// midió en vez de extrapolar horas que nadie observó.
+    private static func outage(
+        from band: PowerBand,
+        domainEnd: Date,
+        lastKnown: Date?
+    ) -> OutageSpan? {
         guard band.state == .off else { return nil }
-        return OutageSpan(start: band.start, end: band.end, isOngoing: band.end >= domainEnd)
+
+        let isFresh = lastKnown.map {
+            domainEnd.timeIntervalSince($0) <= HistoryChart.defaultGapThreshold
+        } ?? false
+
+        let end = isFresh ? band.end : min(band.end, lastKnown ?? band.end)
+        return OutageSpan(start: band.start, end: end, isOngoing: isFresh && band.end >= domainEnd)
     }
 }
