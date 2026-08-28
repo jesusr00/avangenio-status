@@ -47,7 +47,7 @@ jobs:
       - name: Actualizar Homebrew Cask en el tap
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          GIT_AUTHOR_NAME: avangenio-status-ci
-          GIT_AUTHOR_EMAIL: ci@users.noreply.github.com
+          GIT_AUTHOR_NAME: Jesus Reikel Lopez Martin
+          GIT_AUTHOR_EMAIL: jesus.reikel@gmail.com
           VERSION: ${{ steps.ver.outputs.version }}
         run: scripts/update-cask.sh "$VERSION" "dist/AvangenioStatus.dmg"

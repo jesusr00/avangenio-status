@@ -65,8 +65,8 @@ if git diff --quiet; then
   exit 0
 fi
 
-git config user.name  "${GIT_AUTHOR_NAME:-avangenio-status-ci}"
-git config user.email "${GIT_AUTHOR_EMAIL:-ci@users.noreply.github.com}"
+git config user.name  "${GIT_AUTHOR_NAME:-Jesus Reikel Lopez Martin}"
+git config user.email "${GIT_AUTHOR_EMAIL:-jesus.reikel@gmail.com}"
 git add "$CASK_FILE"
 git commit -m "avangenio-status $VERSION"
 git push origin HEAD:main
