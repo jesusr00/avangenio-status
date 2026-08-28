@@ -7,23 +7,25 @@ import AvangenioStatusKit
 struct HistoryView: View {
     @Bindable var model: AppModel
     @State private var range: HistoryRange = .week
-
-    private var data: HistoryChartData {
-        HistoryChart.build(samples: model.history, range: range, now: Date())
-    }
+    @State private var hover: HoverReading?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        // Se construye una sola vez por render: el lector resuelve contra estos mismos
+        // datos, en lugar de recalcularlos en cada movimiento del mouse.
+        let data = HistoryChart.build(samples: model.history, range: range, now: Date())
+
+        return VStack(alignment: .leading, spacing: 12) {
             header
             if data.batterySegments.isEmpty && data.powerBands.isEmpty {
                 emptyState
             } else {
-                chart
+                chart(data)
                 legend
             }
         }
         .padding(16)
         .frame(minWidth: 560, minHeight: 360)
+        .onChange(of: range) { hover = nil }
     }
 
     private var header: some View {
@@ -40,7 +42,7 @@ struct HistoryView: View {
         }
     }
 
-    private var chart: some View {
+    private func chart(_ data: HistoryChartData) -> some View {
         Chart {
             ForEach(Array(data.powerBands.enumerated()), id: \.offset) { _, band in
                 if band.state == .off {
@@ -64,10 +66,54 @@ struct HistoryView: View {
                     .interpolationMethod(.monotone)
                 }
             }
+            if let hover {
+                RuleMark(x: .value("Hora", hover.anchor))
+                    .foregroundStyle(Color.secondary)
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                if case let .reading(percent, _, _) = hover.content {
+                    PointMark(
+                        x: .value("Hora", hover.anchor),
+                        y: .value("Batería", percent)
+                    )
+                    .foregroundStyle(Color.accentColor)
+                    .symbolSize(60)
+                }
+            }
         }
         .chartYScale(domain: 0...100)
         .chartXScale(domain: data.start...data.end)
         .chartYAxisLabel("Batería (%)")
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            hover = reading(at: location, proxy: proxy, geometry: geometry, data: data)
+                        case .ended:
+                            hover = nil
+                        }
+                    }
+            }
+        }
+    }
+
+    /// Traduce la posición del cursor a la lectura del dominio. Devuelve `nil` fuera del
+    /// área de trazado para que no quede un crosshair colgado.
+    private func reading(
+        at location: CGPoint,
+        proxy: ChartProxy,
+        geometry: GeometryProxy,
+        data: HistoryChartData
+    ) -> HoverReading? {
+        guard let plotAnchor = proxy.plotFrame else { return nil }
+        let plot = geometry[plotAnchor]
+        guard plot.contains(location) else { return nil }
+
+        guard let date = proxy.value(atX: location.x - plot.minX, as: Date.self) else { return nil }
+        return HistoryHover.reading(at: date, in: data)
     }
 
     private var legend: some View {
